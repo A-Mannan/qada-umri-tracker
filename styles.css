@@ -23,16 +23,18 @@
   --font-ui:"Outfit",system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans",sans-serif;
   --font-display:"Newsreader",Georgia,"Noto Naskh Arabic",serif;
   --font-ar:"Amiri","Noto Naskh Arabic","Scheherazade New",serif;
-  --bg:#F6F1E7; --bg-deep:#EFE7D6; --surface:#FFFDF8; --surface-2:#FBF7EE;
-  --ink:#1D2521; --muted:#5D6762; --faint:#5A6560;
-  --line:rgba(29,37,33,.11); --line-strong:rgba(29,37,33,.22);
-  --accent:#14665A; --accent-deep:#0B3D36; --accent-soft:rgba(20,102,90,.1);
-  --brass:#7A5E1D; --brass-soft:rgba(122,94,29,.12);
+  --bg:#F2EDE2; --bg-deep:#E9E2D2; --surface:#FFFFFF; --surface-2:#F8F4EA;
+  --ink:#1A211D; --muted:#58625C; --faint:#5C6660;
+  --line:rgba(26,33,29,.13); --line-strong:rgba(26,33,29,.26);
+  --grid-line:rgba(26,33,29,.05);
+  --accent:#14665A; --accent-deep:#0B3D36; --accent-soft:rgba(20,102,90,.08);
+  --brass:#7A5E1D; --brass-bright:#A87B22; --brass-soft:rgba(122,94,29,.12);
   --danger:#A63D2F; --danger-soft:rgba(166,61,47,.1);
-  --ring-track:rgba(29,37,33,.12);
-  --tabbar:rgba(246,241,231,.82);
+  --ring-track:rgba(26,33,29,.12);
+  --heat-1:#DCEAE5; --heat-2:#B4D3CA; --heat-3:#74B0A1; --heat-4:#14665A;
+  --tabbar:rgba(242,237,226,.85);
   --hero-from:#0E443B; --hero-to:#08211C; --hero-ink:#F2EBD6;
-  --shadow:0 1px 2px rgba(29,37,33,.05),0 8px 28px -12px rgba(29,37,33,.18);
+  --shadow:0 1px 2px rgba(26,33,29,.05),0 10px 24px -18px rgba(26,33,29,.3);
   --focus:#0B3D36;
   color-scheme:light;
 }
@@ -44,27 +46,18 @@
   --brass:#D3A94E; --brass-soft:rgba(211,169,78,.14);
   --danger:#E08A76; --danger-soft:rgba(224,138,118,.14);
   --ring-track:rgba(236,229,211,.14);
+  --grid-line:rgba(236,229,211,.05);
+  --heat-1:#1B3B33; --heat-2:#2A5D4F; --heat-3:#3F8A73; --heat-4:#63BD9C;
+  --brass-bright:#E0B45C;
   --tabbar:rgba(13,20,18,.78);
   --hero-from:#134A3E; --hero-to:#081B17; --hero-ink:#F2EBD6;
   --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 32px -12px rgba(0,0,0,.55);
   --focus:#A9E3C8;
   color-scheme:dark;
 }
-@media (prefers-color-scheme:dark){
-  :root:not([data-theme="light"]):not([data-theme="dark"]){
-    --bg:#0D1412; --bg-deep:#0A0F0D; --surface:#152019; --surface-2:#182420;
-    --ink:#ECE5D3; --muted:#A3AFA8; --faint:#77837D;
-    --line:rgba(236,229,211,.13); --line-strong:rgba(236,229,211,.28);
-    --accent:#63BD9C; --accent-deep:#A9E3C8; --accent-soft:rgba(99,189,156,.14);
-    --brass:#D3A94E; --brass-soft:rgba(211,169,78,.14);
-    --danger:#E08A76; --danger-soft:rgba(224,138,118,.14);
-    --ring-track:rgba(236,229,211,.14);
-    --tabbar:rgba(13,20,18,.78);
-  --hero-from:#134A3E; --hero-to:#081B17; --hero-ink:#F2EBD6;
-    --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 32px -12px rgba(0,0,0,.55);
-    --focus:#A9E3C8; color-scheme:dark;
-  }
-}
+/* No media-query fallback block here on purpose: index.html resolves the theme
+   to data-theme="light|dark" before first paint, so [data-theme] is the single
+   source of truth and component overrides can never be skipped. */
 html{-webkit-text-size-adjust:100%}
 body{
   margin:0; background:var(--bg); color:var(--ink);
@@ -73,19 +66,17 @@ body{
   transition:background .35s var(--ease-out),color .35s var(--ease-out);
 }
 /* faint arch texture backdrop (fixed, non-scrolling, pointer-free) */
-.arch-frame{position:fixed; inset:0; z-index:0; pointer-events:none; opacity:.5;
-  background:
-    radial-gradient(52rem 30rem at 50% -8rem, var(--accent-soft), transparent 70%),
-    repeating-linear-gradient(90deg, transparent 0 79px, var(--line) 79px 80px);
-  mask-image:linear-gradient(#000 0%,transparent 55%);
-  -webkit-mask-image:linear-gradient(#000 0%,transparent 55%);
-  opacity:.35;
+.arch-frame{position:fixed; inset:0; z-index:0; pointer-events:none;
+  background:radial-gradient(44rem 24rem at 50% -11rem, var(--accent-soft), transparent 74%);
 }
 main{position:relative; z-index:1; max-width:560px; margin-inline:auto; padding:0 18px calc(120px + env(safe-area-inset-bottom));}
 @media(min-width:768px){main{max-width:640px}}
 @media(min-width:1100px){main{max-width:680px}}
 ::selection{background:var(--accent-soft)}
 :focus-visible{outline:3px solid var(--focus); outline-offset:2px; border-radius:6px}
+/* #main is a programmatic focus target for view changes and the skip link —
+   it is not an interactive control, so it must not paint a focus ring. */
+#main:focus,#main:focus-visible{outline:none}
 .skip{position:absolute; inset-inline-start:12px; top:-60px; z-index:100; background:var(--ink); color:var(--bg); padding:10px 16px; border-radius:8px; text-decoration:none; transition:top .2s}
 .skip:focus{top:12px}
 
@@ -96,9 +87,12 @@ main{position:relative; z-index:1; max-width:560px; margin-inline:auto; padding:
   border-block-end:1px solid var(--line);}
 @media(min-width:768px){.topbar{max-width:640px}}
 .brand{display:flex; align-items:center; gap:12px}
-.brand-ar{font-family:var(--font-ar); font-size:22px; line-height:1.6; white-space:nowrap; flex:none; overflow:hidden;
+.brand-ar{font-family:var(--font-ar); font-size:22px; line-height:1; white-space:nowrap; flex:none; overflow:hidden;
+  display:inline-flex; align-items:center; justify-content:center;
   color:var(--accent-deep); background:var(--accent-soft); border:1px solid var(--line);
-  padding:4px 14px 8px; border-radius:999px 999px 12px 12px;}
+  height:50px; padding:11px 15px 3px; border-radius:999px 999px 12px 12px;}
+/* glyph-ink is optically 1.5px high inside Amiri's line box; measured correction */
+.brand-ar>span{display:block; transform:translateY(1.5px)}
 [data-theme="dark"] .brand-ar{color:var(--accent-deep)}
 .brand-en{display:flex; flex-direction:column; line-height:1.15}
 .brand-en strong{font-family:var(--font-display); font-size:21px; font-weight:600; letter-spacing:-.01em}
@@ -188,9 +182,12 @@ h1{font-family:var(--font-display); font-weight:550; font-size:clamp(30px,8vw,40
 [data-theme="dark"] .exact-cell .ar{color:var(--accent)}
 .exact-cell .en{font-size:13px; color:var(--muted)}
 .stepper{display:flex; align-items:center; gap:6px; margin-block-start:8px}
-.stepper button{width:44px; height:44px; border-radius:12px; border:1px solid var(--line-strong); background:var(--surface); color:var(--ink); font-size:20px; cursor:pointer; line-height:1}
+.stepper button{width:44px; height:44px; border-radius:12px; border:1px solid var(--line-strong); background:var(--surface); color:var(--ink); font-size:20px; cursor:pointer; line-height:1; flex:none}
 .stepper button:active{transform:scale(.92)}
 .stepper output{flex:1; text-align:center; font-weight:700; font-size:19px; font-variant-numeric:tabular-nums}
+.stepper .stepper-input{flex:1 1 auto; min-width:0; width:100%; text-align:center; font:inherit; font-weight:700;
+  font-size:19px; font-variant-numeric:tabular-nums; min-height:44px; padding:6px 4px; border-radius:12px;
+  border:1.5px solid var(--line-strong); background:var(--surface); color:var(--ink)}
 
 /* hero */
 .hero-arch{margin:18px 0 4px; border-radius:999px 999px var(--r-lg) var(--r-lg); overflow:hidden;
@@ -204,8 +201,8 @@ h1{font-family:var(--font-display); font-weight:550; font-size:clamp(30px,8vw,40
 .hero-ar{font-family:var(--font-ar); font-size:24px; opacity:.9; margin:0}
 .hero-div{display:flex; align-items:center; justify-content:center; gap:10px; margin:10px 0 12px}
 .hero-div span{height:1px; width:58px}
-.hero-div span:first-child{background:linear-gradient(90deg,transparent,rgba(231,200,126,.75))}
-.hero-div span:last-child{background:linear-gradient(90deg,rgba(231,200,126,.75),transparent)}
+.hero-div span:first-child{background:linear-gradient(90deg,transparent,rgba(231,200,126,.8))}
+.hero-div span:last-child{background:linear-gradient(90deg,rgba(231,200,126,.8),transparent)}
 .hero-div i{width:7px; height:7px; background:#E7C87E; transform:rotate(45deg); border-radius:1.5px; flex:none}
 .hero-inner h1{font-weight:600; letter-spacing:-.02em}
 .hero-inner h1{font-size:clamp(52px,17vw,72px); font-variant-numeric:tabular-nums; margin:0; line-height:1; display:flex; flex-direction:column; gap:2px}
@@ -234,7 +231,7 @@ h1{font-family:var(--font-display); font-weight:550; font-size:clamp(30px,8vw,40
 .prayer-card.is-clear{opacity:.62}
 .p-track{grid-column:1/-1; height:4px; border-radius:999px; background:var(--ring-track); margin:8px 0 2px; overflow:hidden}
 .p-track i{display:block; height:100%; width:0; border-radius:inherit;
-  background:linear-gradient(90deg,var(--accent),var(--brass)); transition:width .9s var(--ease-out)}
+  background:linear-gradient(90deg,var(--accent),var(--brass-bright)); transition:width .9s var(--ease-out)}
 .prayer-top{display:flex; align-items:baseline; gap:10px}
 .prayer-ar{font-family:var(--font-ar); font-size:23px; color:var(--accent-deep); line-height:1.2}
 [data-theme="dark"] .prayer-ar{color:var(--accent)}
@@ -250,7 +247,7 @@ h1{font-family:var(--font-display); font-weight:550; font-size:clamp(30px,8vw,40
 .logbtn[disabled]{opacity:.4; cursor:default}
 .logbtn .plus{font-size:24px; line-height:1}
 .minibtns{display:flex; gap:8px; grid-column:1/-1}
-.minibtn{flex:1; min-height:44px; border-radius:12px; border:1px solid var(--line); background:transparent; color:var(--muted);
+.minibtn{flex:1; min-height:44px; border-radius:12px; border:1px solid var(--line); background:var(--surface-2); color:var(--muted);
   font:inherit; font-size:13.5px; font-weight:600; cursor:pointer}
 .minibtn:active{transform:scale(.97)}
 .bulkrow{margin-block-start:12px}
@@ -283,11 +280,10 @@ h1{font-family:var(--font-display); font-weight:550; font-size:clamp(30px,8vw,40
 .heatmap{display:grid; grid-template-columns:repeat(16,1fr); grid-template-rows:repeat(7,1fr); grid-auto-flow:column; gap:4px; direction:ltr}
 .heatmap i{aspect-ratio:1; border-radius:4px; background:var(--ring-track); min-width:0}
 .heatmap i.is-future{background:transparent}
-.heatmap i[data-l="1"]{background:color-mix(in srgb,var(--accent) 30%,transparent)}
-.heatmap i[data-l="2"]{background:color-mix(in srgb,var(--accent) 52%,transparent)}
-.heatmap i[data-l="3"]{background:color-mix(in srgb,var(--accent) 76%,transparent)}
-.heatmap i[data-l="4"]{background:var(--accent)}
-@supports not (background:color-mix(in srgb,red 50%,blue)){.heatmap i[data-l="1"]{opacity:.45}.heatmap i[data-l="2"]{opacity:.65}.heatmap i[data-l="3"]{opacity:.85}}
+.heatmap i[data-l="1"]{background:var(--heat-1)}
+.heatmap i[data-l="2"]{background:var(--heat-2)}
+.heatmap i[data-l="3"]{background:var(--heat-3)}
+.heatmap i[data-l="4"]{background:var(--heat-4)}
 .heat-legend{display:flex; align-items:center; gap:5px; justify-content:flex-end; margin-block-start:10px; font-size:12px; color:var(--faint)}
 .heat-legend i{width:12px; height:12px; border-radius:3px; background:var(--ring-track)}
 .bars{display:grid; grid-template-columns:repeat(8,1fr); gap:8px; align-items:end; min-height:120px; direction:ltr}
@@ -300,7 +296,7 @@ h1{font-family:var(--font-display); font-weight:550; font-size:clamp(30px,8vw,40
 .moments{list-style:none; margin:0; padding:0}
 .moments li{display:flex; gap:12px; padding:12px 2px; border-block-end:1px solid var(--line); align-items:baseline}
 .moments li:last-child{border:0}
-.moments .dot{width:9px; height:9px; border-radius:50%; background:var(--brass); flex:none; transform:translateY(-1px)}
+.moments .dot{width:9px; height:9px; border-radius:50%; background:var(--brass-bright); flex:none; transform:translateY(-1px)}
 .moments p{margin:0}
 .moments time{font-size:12.5px; color:var(--faint)}
 
@@ -328,7 +324,7 @@ h1{font-family:var(--font-display); font-weight:550; font-size:clamp(30px,8vw,40
 .tab{font:inherit; display:flex; flex-direction:column; align-items:center; gap:3px; min-height:56px; justify-content:center;
   border:0; background:transparent; color:var(--muted); border-radius:14px; cursor:pointer; font-size:12.5px; font-weight:600}
 .tab.is-active{color:var(--accent-deep)}
-.tab.is-active::after{content:""; width:4px; height:4px; border-radius:50%; background:var(--brass)}
+.tab.is-active::after{content:""; width:4px; height:4px; border-radius:50%; background:var(--brass-bright)}
 [data-theme="dark"] .tab.is-active{color:var(--accent)}
 .tab:active{transform:scale(.96)}
 

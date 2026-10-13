@@ -5,8 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Qadā’ — Umri Namaz Tracker</title>
 <meta name="description" content="A private, offline-first tracker for making up missed (qaza) prayers. All data stays on your device.">
-<meta name="theme-color" content="#101915" media="(prefers-color-scheme: dark)">
-<meta name="theme-color" content="#F6F1E7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#F2EDE2">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -14,9 +13,14 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Qadā’">
-<link rel="stylesheet" href="styles.css">
 <link rel="preload" href="fonts/newsreader-latin-400_700-normal.woff2" as="font" type="font/woff2" crossorigin fetchpriority="high">
-<script>try{var t=localStorage.getItem('qaza-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
+<script>/* Resolve the theme to a concrete attribute before first paint, so every
+   component-level [data-theme] rule matches from the very first frame.
+   Falls back to the OS preference if storage is unavailable. */
+(function(){var d=false;try{var s=localStorage.getItem('qaza-theme');d=(s==='dark')||(s!=='light'&&(s==null||s==='system')&&window.matchMedia('(prefers-color-scheme: dark)').matches);}catch(e){try{d=window.matchMedia('(prefers-color-scheme: dark)').matches;}catch(e2){}}
+document.documentElement.setAttribute('data-theme',d?'dark':'light');
+var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute('content',d?'#0D1412':'#F2EDE2');})();</script>
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <a class="skip" href="#main">Skip to main content</a>
@@ -40,7 +44,7 @@
 
 <header class="topbar" id="topbar" hidden>
   <div class="brand">
-    <span class="brand-ar" lang="ar">قَضَاء</span>
+    <span class="brand-ar" lang="ar"><span>قَضَاء</span></span>
     <span class="brand-en"><strong>Qadā’</strong><em>Umri tracker</em></span>
   </div>
   <div class="top-actions">
@@ -286,6 +290,9 @@
 </div>
 
 <noscript><p style="padding:2rem;text-align:center">Qadā’ needs JavaScript to keep your record on this device.</p></noscript>
+<script>/* Returning visitor? Skip the onboarding shell before first paint — this
+   mirrors the IndexedDB flag and is reconciled by boot() either way. */
+try{if(localStorage.getItem('qaza-onboarded')==='1'){document.getElementById('screen-onboarding').hidden=true;document.getElementById('topbar').hidden=false;document.getElementById('tabbar').hidden=false;}}catch(e){}</script>
 <script src="app.js" defer></script>
 </body>
 </html>

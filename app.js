@@ -1,6 +1,6 @@
 'use strict';
 /* Qadā’ — offline-first Umri tracker. Append-only event log in IndexedDB; all stats derived. */
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.1.0';
 const DB_NAME = 'qaza-db';
 const DB_VERSION = 3;
 
@@ -183,6 +183,22 @@ function pace(byDay, n) {
   return s / n;
 }
 
+/* ---------- Derived-state memo ----------
+   Everything is derived from the log, but a tap must not pay for the whole
+   log twice (append clamps, then render paints). Keyed on the only two
+   things that can invalidate it: log length and the Witr toggle. */
+let _memo = null;
+function derived(forWitr = state.witr) {
+  if (!_memo || _memo.n !== state.events.length || _memo.w !== forWitr) {
+    _memo = {
+      n: state.events.length, w: forWitr,
+      stats: computeStats(state.events, forWitr),
+      byDay: completionsByDay(state.events, forWitr),
+    };
+  }
+  return _memo;
+}
+
 /* ---------- Mutations (all append-only + undoable) ---------- */
 let _seqChain = Promise.resolve();
 function nextSeq() {
@@ -194,6 +210,13 @@ function nextSeq() {
   return _seqChain;
 }
 async function append(kind, payload = {}, msg) {
+  // Clamp at write time so the recorded event is always truthful and undo
+  // always moves the number (over-logging from rapid taps records nothing).
+  if (kind === 'complete') {
+    const rem = derived().stats.rem[payload.prayer] ?? 0;
+    payload.n = Math.max(0, Math.min(payload.n, rem));
+    if (payload.n === 0) { snack('Nothing left to log here.', null); return null; }
+  }
   const ev = { id: uid(), at: Date.now(), seq: await nextSeq(), kind, ...payload };
   await store.putEvent(ev);
   state.events.push(ev);
@@ -205,6 +228,7 @@ async function append(kind, payload = {}, msg) {
 async function undoIds(ids) {
   for (const id of ids) await store.putEvent({ id: uid(), at: Date.now(), seq: await nextSeq(), kind: 'void', target: id });
   state.events = await store.allEvents();
+  _memo = null;
   state.lastUndoIds = [];
   render();
 }
@@ -227,10 +251,12 @@ $('#snack-close').addEventListener('click', hideSnack);
 /* ---------- Theme ---------- */
 function applyTheme() {
   const t = state.theme || 'system';
-  const root = document.documentElement;
-  root.removeAttribute('data-theme');
-  if (t === 'light' || t === 'dark') root.setAttribute('data-theme', t);
-  const dark = t === 'dark' || (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+  const dark = t === 'dark' || (t !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+  // Always resolve to a concrete attribute — never remove it. Component-level
+  // [data-theme="dark"] overrides depend on it (see styles.css).
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', dark ? '#0D1412' : '#F2EDE2');
   $('#themeBtn').setAttribute('aria-pressed', String(dark));
   const moon = $('#theme-moon'), sun = $('#theme-sun');
   // NB: .hidden doesn't reflect on SVG elements — use the attribute.
@@ -255,26 +281,49 @@ function refreshEstimate() {
   $('#est-total').textContent = fmt.format(per * 5 + (state.witr ? per : 0));
   $('#est-breakdown').textContent = `${fmt.format(per)} per prayer · ${breakdown}`;
 }
+/** Shared stepper builder: tap adjusts (±step, shift = ±100), typing sets exactly.
+    onCommit fires on button tap, blur, or Enter — never per keystroke. */
+function buildStepper({ label, step = 10, initial = 0, onCommit }) {
+  const wrap = document.createElement('div');
+  wrap.className = 'stepper';
+  wrap.innerHTML = `<button type="button" data-step="-1" aria-label="Decrease ${label}">−</button>
+    <input class="stepper-input" type="text" inputmode="numeric" autocomplete="off"
+      value="0" aria-label="${label} — type a number, or use the buttons">
+    <button type="button" data-step="1" aria-label="Increase ${label}">+</button>`;
+  const input = $('.stepper-input', wrap);
+  let v = initial;
+  const set = (x) => { v = Math.max(0, Math.min(1000000, Math.round(Number(x) || 0))); };
+  const paint = () => { input.value = fmt.format(v); };
+  input.addEventListener('focus', () => { input.value = String(v); input.select(); });
+  input.addEventListener('input', () => {
+    const digits = input.value.replace(/[^\d]/g, '');
+    if (digits !== input.value) input.value = digits;
+    set(parseInt(digits, 10) || 0);
+  });
+  input.addEventListener('blur', () => { paint(); if (onCommit) onCommit(v); });
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); input.blur(); } });
+  wrap.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-step]');
+    if (!b) return;
+    set(v + Number(b.dataset.step) * (e.shiftKey ? 100 : step));
+    paint();
+    buzz(8);
+    if (onCommit) onCommit(v);
+  });
+  set(initial); paint();
+  return { el: wrap, get: () => v, set: (x) => { set(x); paint(); } };
+}
+
 function buildExactGrid() {
   const g = $('#exact-grid'); g.innerHTML = '';
   for (const p of PRAYERS) {
     const cell = document.createElement('div');
     cell.className = 'exact-cell';
     cell.dataset.prayer = p.id;
-    cell.innerHTML = `<span class="ar" lang="ar">${p.ar}</span><span class="en">${p.en}</span>
-      <div class="stepper"><button type="button" data-step="-1" aria-label="Decrease ${p.en}">−</button>
-      <output aria-live="polite">0</output>
-      <button type="button" data-step="1" aria-label="Increase ${p.en}">+</button></div>`;
-    const out = $('output', cell);
-    let v = 0;
-    const set = (x) => { v = Math.max(0, Math.min(100000, Math.round(x))); out.textContent = fmt.format(v); };
-    cell._get = () => v; cell._set = set;
-    cell.addEventListener('click', (e) => {
-      const b = e.target.closest('[data-step]');
-      if (!b) return;
-      set(v + Number(b.dataset.step) * (e.shiftKey ? 100 : 10));
-      buzz(8);
-    });
+    cell.innerHTML = `<span class="ar" lang="ar">${p.ar}</span><span class="en">${p.en}</span>`;
+    const st = buildStepper({ label: `${p.en} count`, step: 10 });
+    cell._get = st.get;
+    cell.appendChild(st.el);
     g.appendChild(cell);
   }
 }
@@ -310,7 +359,7 @@ function renderHome(stats) {
   bar.setAttribute('aria-valuenow', pct);
   $('#hero-fill').style.width = `${pct}%`;
 
-  const byDay = completionsByDay(state.events, state.witr);
+  const byDay = derived().byDay;
   tweenNumber($('#today-count'), byDay.get(dayKey()) || 0, (v) => String(v));
 
   const list = $('#prayer-list'); list.innerHTML = '';
@@ -352,7 +401,7 @@ function ringSVG(pct, size = 64, draw = false) {
 function renderJourney(stats) {
   tweenNumber($('#st-remaining'), stats.totRem);
   tweenNumber($('#st-done'), stats.totDone);
-  const byDay = completionsByDay(state.events, state.witr);
+  const byDay = derived().byDay;
   const { cur, best } = streaks(byDay);
   tweenNumber($('#st-streak'), cur, String);
   tweenNumber($('#st-best'), best, String);
@@ -365,9 +414,17 @@ function renderJourney(stats) {
   else {
     const rate = p7 >= 0.2 ? p7 : p30;
     const days = Math.ceil(stats.totRem / rate);
-    const d = new Date(); d.setDate(d.getDate() + days);
-    proj.textContent = d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
-    sub.textContent = `About ${fmt.format(days)} days at ${Math.round(rate * 10) / 10}/day. An estimate, not a promise.`;
+    if (days > 9125) { // beyond ~25 years: the date stops being useful, and a far-off
+      // year reads as discouraging. Stay honest, but show the way forward.
+      const closer = Math.ceil(stats.totRem / (rate + 1)) ;
+      const yearsSaved = Math.max(1, Math.round((days - closer) / 365.25));
+      proj.textContent = 'Beyond 25 years at this pace';
+      sub.textContent = `About ${Math.round(rate * 10) / 10}/day. One more each day would move it roughly ${yearsSaved} years closer.`;
+    } else {
+      const d = new Date(); d.setDate(d.getDate() + days);
+      proj.textContent = d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+      sub.textContent = `About ${fmt.format(days)} days at ${Math.round(rate * 10) / 10}/day. An estimate, not a promise.`;
+    }
   }
 
   // rings
@@ -495,20 +552,15 @@ function renderSettings(stats) {
   for (const p of activePrayers(state.witr)) {
     const row = document.createElement('div');
     row.className = 'adjust-row';
-    row.innerHTML = `<span class="nm">${p.en}<span class="ar" lang="ar">${p.ar}</span></span>
-      <div class="stepper"><button type="button" data-a="-10" aria-label="Decrease remaining ${p.en} by 10">−</button>
-      <button type="button" data-a="-1" aria-label="Decrease remaining ${p.en} by 1">−1</button>
-      <output aria-live="polite">${fmt.format(stats.rem[p.id])}</output>
-      <button type="button" data-a="1" aria-label="Increase remaining ${p.en} by 1">+1</button>
-      <button type="button" data-a="10" aria-label="Increase remaining ${p.en} by 10">+</button></div>`;
-    row.addEventListener('click', async (e) => {
-      const b = e.target.closest('[data-a]');
-      if (!b) return;
-      const to = Math.max(0, Math.min(1000000, stats.rem[p.id] + Number(b.dataset.a)));
-      if (to === stats.rem[p.id]) return;
-      await append('adjust', { prayer: p.id, to }, `${p.en} remaining set to ${fmt.format(to)}`);
-      buzz(8);
+    row.innerHTML = `<span class="nm">${p.en}<span class="ar" lang="ar">${p.ar}</span></span>`;
+    const st = buildStepper({
+      label: `remaining ${p.en}`, step: 1, initial: stats.rem[p.id],
+      onCommit: async (next) => {
+        if (next === stats.rem[p.id]) return;
+        await append('adjust', { prayer: p.id, to: next }, `${p.en} remaining set to ${fmt.format(next)}`);
+      },
     });
+    row.appendChild(st.el);
     g.appendChild(row);
   }
   $('#set-witr').setAttribute('aria-checked', String(state.witr));
@@ -558,6 +610,7 @@ function show(tab) {
     if (on) t.setAttribute('aria-current', 'page'); else t.removeAttribute('aria-current');
   });
   if (location.hash !== '#/' + tab && state.onboarded) history.replaceState(null, '', '#/' + tab);
+  if (state.onboarded) render();
   $('#main').focus({ preventScroll: true });
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -565,11 +618,12 @@ function show(tab) {
 function render() {
   tweenNumber.instant = !render.seen;
   render.seen = true;
-  const stats = computeStats(state.events, state.witr);
   if (!state.onboarded) return;
-  renderHome(stats);
-  renderJourney(stats);
-  renderSettings(stats);
+  const { stats } = derived();
+  // Only paint the visible screen — the other two are rebuilt on arrival by show().
+  if (state.tab === 'journey') renderJourney(stats);
+  else if (state.tab === 'settings') renderSettings(stats);
+  else renderHome(stats);
 }
 
 /* ---------- Events wiring ---------- */
@@ -657,23 +711,17 @@ function wire() {
     for (const p of activePrayers(state.witr)) {
       const row = document.createElement('div');
       row.className = 'adjust-row';
-      row.innerHTML = `<span class="nm">${p.en}<span class="ar" lang="ar">${p.ar}</span></span>
-        <div class="stepper"><button type="button" data-b="-1" aria-label="Decrease ${p.en}">−</button>
-        <output>0</output><button type="button" data-b="1" aria-label="Increase ${p.en}">+</button></div>`;
-      let v = 0; const out = $('output', row);
-      row.addEventListener('click', (ev) => {
-        const b = ev.target.closest('[data-b]');
-        if (!b) return;
-        v = Math.max(0, Math.min(100000, v + Number(b.dataset.b) * (ev.shiftKey ? 50 : 5)));
-        out.textContent = fmt.format(v);
-      });
-      row._get = () => v; row.dataset.prayer = p.id;
+      row.innerHTML = `<span class="nm">${p.en}<span class="ar" lang="ar">${p.ar}</span></span>`;
+      const st = buildStepper({ label: `add ${p.en} to debt`, step: 5, initial: 0 });
+      row._get = st.get; row.dataset.prayer = p.id;
+      row.appendChild(st.el);
       g.appendChild(row);
     }
     bulk.hidden = false;
+    openModal(bulk);
     $('#bulk-cancel').focus();
   });
-  const closeBulk = () => { bulk.hidden = true; $('#bulk-btn').focus(); };
+  const closeBulk = () => { bulk.hidden = true; closeModal(); $('#bulk-btn').focus(); };
   $('#bulk-cancel').addEventListener('click', closeBulk);
   bulk.addEventListener('click', (e) => { if (e.target === bulk) closeBulk(); });
   $('#bulk-save').addEventListener('click', async () => {
@@ -685,7 +733,7 @@ function wire() {
       await store.putEvent(ev); state.events.push(ev); ids.push(ev.id);
     }
     state.lastUndoIds = ids;
-    bulk.hidden = true; render();
+    bulk.hidden = true; closeModal(); render();
     snack(`Added ${fmt.format(rows.reduce((s, r) => s + r._get(), 0))} to your debt.`, ids);
     $('#bulk-btn').focus();
   });
@@ -731,19 +779,33 @@ function wire() {
   const rs = $('#reset-scrim');
   $('#reset-btn').addEventListener('click', () => {
     $('#reset-confirm').checked = false; $('#reset-do').disabled = true;
-    rs.hidden = false; $('#reset-cancel').focus();
+    rs.hidden = false; openModal(rs); $('#reset-cancel').focus();
   });
   $('#reset-confirm').addEventListener('change', (e) => { $('#reset-do').disabled = !e.target.checked; });
-  $('#reset-cancel').addEventListener('click', () => { rs.hidden = true; $('#reset-btn').focus(); });
-  rs.addEventListener('click', (e) => { if (e.target === rs) { rs.hidden = true; $('#reset-btn').focus(); } });
+  $('#reset-cancel').addEventListener('click', () => { rs.hidden = true; closeModal(rs); $('#reset-btn').focus(); });
+  rs.addEventListener('click', (e) => { if (e.target === rs) { rs.hidden = true; closeModal(rs); $('#reset-btn').focus(); } });
   $('#reset-do').addEventListener('click', async () => {
     await store.clearAll();
+    try { localStorage.removeItem('qaza-onboarded'); } catch { /* noop */ }
     _db && _db.close(); _db = null;
     location.hash = ''; location.reload();
   });
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { bulk.hidden = true; rs.hidden = true; hideSnack(); }
+    if (e.key !== 'Escape') return;
+    if (!bulk.hidden) { bulk.hidden = true; closeModal(bulk); $('#bulk-btn').focus(); }
+    if (!rs.hidden) { rs.hidden = true; closeModal(rs); $('#reset-btn').focus(); }
+    hideSnack();
   });
+}
+
+/* Dialogs: mark the background inert so focus, pointer and screen readers
+   stay inside the sheet (and Tab can't wander behind the scrim). */
+function openModal(scrim) {
+  ['#main', '#topbar', '#tabbar'].forEach(s => { const el = $(s); if (el) el.inert = true; });
+  scrim.inert = false;
+}
+function closeModal() {
+  ['#main', '#topbar', '#tabbar'].forEach(s => { const el = $(s); if (el) el.inert = false; });
 }
 
 async function finishOnboarding(counts) {
@@ -751,6 +813,7 @@ async function finishOnboarding(counts) {
   await store.putEvent({ id: uid(), at: Date.now(), seq: await nextSeq(), kind: 'init', counts });
   await store.setKV('onboarded', true);
   await store.setKV('witr', state.witr);
+  try { localStorage.setItem('qaza-onboarded', '1'); } catch { /* noop */ }
   state.onboarded = true;
   state.events = await store.allEvents();
   render();
@@ -761,6 +824,10 @@ async function finishOnboarding(counts) {
 /* ---------- PWA: service worker, install, updates ---------- */
 function wirePWA() {
   if ('serviceWorker' in navigator) {
+    // Was a worker already in control? Only then is a reload meaningful:
+    // on the very first visit clients.claim() fires controllerchange, and
+    // reloading there would double-load the app for no reason.
+    const hadController = !!navigator.serviceWorker.controller;
     // Register immediately (not on load): avoids a race where load fires
     // before boot's async IndexedDB reads finish attaching the listener.
     (async () => {
@@ -776,7 +843,7 @@ function wirePWA() {
         $('#updateNow').addEventListener('click', () => {
           reg.waiting ? reg.waiting.postMessage({ type: 'SKIP_WAITING' }) : location.reload();
         });
-        navigator.serviceWorker.addEventListener('controllerchange', () => location.reload());
+        navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController) location.reload(); });
       } catch { /* offline-first still works without SW on first load */ }
     })();
   }
@@ -797,21 +864,35 @@ function wirePWA() {
 
 /* ---------- Boot ---------- */
 async function boot(first = true) {
+  _memo = null; // the log may have been replaced wholesale (import, reload)
+  // 1. Everything that needs no storage happens now, so the first paint is
+  //    useful (the estimate is pure arithmetic) even before IndexedDB opens.
+  if (first) {
+    buildExactGrid(); wire(); wirePWA(); applyTheme(); refreshEstimate();
+    $('#appver').textContent = APP_VERSION;
+  }
+  // Persistence is a nicety, never a gate — ask for it off the critical path.
+  if (navigator.storage && navigator.storage.persist) { navigator.storage.persist().catch(() => {}); }
+  // 2. Storage reads run in parallel instead of four sequential round-trips.
   try {
-    if (navigator.storage && navigator.storage.persist) { try { await navigator.storage.persist(); } catch { /* noop */ } }
-    state.events = await store.allEvents();
-    state.onboarded = (await store.getKV('onboarded')) === true;
-    const w = await store.getKV('witr');
+    const [events, onboarded, w, theme] = await Promise.all([
+      store.allEvents(), store.getKV('onboarded'), store.getKV('witr'), store.getKV('theme'),
+    ]);
+    state.events = events;
+    state.onboarded = onboarded === true;
     state.witr = w === undefined ? true : w === true;
-    state.theme = (await store.getKV('theme')) || 'system';
+    state.theme = theme || 'system';
     state.kv = { onboarded: state.onboarded, witr: state.witr, theme: state.theme };
   } catch {
     state.events = [];
     state.onboarded = false;
   }
-  if (first) { buildExactGrid(); wire(); wirePWA(); applyTheme(); refreshEstimate(); $('#appver').textContent = APP_VERSION; }
+  // 3. Reconcile the pre-paint hint with the truth (self-heals a stale flag).
+  try {
+    if (state.onboarded) localStorage.setItem('qaza-onboarded', '1');
+    else localStorage.removeItem('qaza-onboarded');
+  } catch { /* noop */ }
   applyTheme();
-  render();
   const hash = (location.hash || '').replace('#/', '');
   show(!state.onboarded ? 'onboarding' : ['home', 'journey', 'settings'].includes(hash) ? hash : 'home');
   window.addEventListener('hashchange', () => {
