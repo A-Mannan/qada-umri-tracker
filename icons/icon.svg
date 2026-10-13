@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#0B3D36"/>
+  <path d="M256 92c-72 0-118 62-118 138v150h236V230c0-76-46-138-118-138Z" fill="none" stroke="#F2EBD6" stroke-width="22"/>
+  <path d="M256 150c-44 0-72 38-72 86v90h144v-90c0-48-28-86-72-86Z" fill="#14665A"/>
+  <text x="256" y="292" text-anchor="middle" font-size="72" fill="#F2EBD6" font-family="serif">قضاء</text>
+  <circle cx="256" cy="408" r="10" fill="#E7C87E"/>
+</svg>

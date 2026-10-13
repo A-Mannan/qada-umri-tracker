@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Qadā’ — Umri Namaz Tracker</title>
+<meta name="description" content="A private, offline-first tracker for making up missed (qaza) prayers. All data stays on your device.">
+<meta name="theme-color" content="#101915" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#F6F1E7" media="(prefers-color-scheme: light)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Qadā’">
+<link rel="stylesheet" href="styles.css">
+<link rel="preload" href="fonts/newsreader-latin-400_700-normal.woff2" as="font" type="font/woff2" crossorigin fetchpriority="high">
+<script>try{var t=localStorage.getItem('qaza-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+
+<div class="arch-frame" aria-hidden="true"></div>
+
+<!-- Update prompt -->
+<div class="updatebar" id="updatebar" hidden role="status">
+  <p>A new version is ready.</p>
+  <button type="button" class="btn btn-small" id="updateNow">Refresh</button>
+</div>
+
+<!-- Install prompt (Android) -->
+<div class="updatebar installbar" id="installbar" hidden role="status">
+  <p>Install Qadā’ on your device for offline use.</p>
+  <div class="row">
+    <button type="button" class="btn btn-small" id="installNow">Install</button>
+    <button type="button" class="btn btn-small btn-ghost" id="installLater">Not now</button>
+  </div>
+</div>
+
+<header class="topbar" id="topbar" hidden>
+  <div class="brand">
+    <span class="brand-ar" lang="ar">قَضَاء</span>
+    <span class="brand-en"><strong>Qadā’</strong><em>Umri tracker</em></span>
+  </div>
+  <div class="top-actions">
+    <button type="button" class="iconbtn" id="themeBtn" aria-label="Change theme" aria-pressed="false">
+      <svg id="theme-moon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M20 13.5A8 8 0 0 1 10.5 4 7 7 0 1 0 20 13.5Z"/></svg>
+      <svg id="theme-sun" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true" hidden><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.4M12 19.1v2.4M2.5 12h2.4M19.1 12h2.4M5 5l1.7 1.7M17.3 17.3 19 19M19 5l-1.7 1.7M6.7 17.3 5 19"/></svg>
+    </button>
+  </div>
+</header>
+
+<main id="main" tabindex="-1">
+
+  <!-- ONBOARDING (visible by default: first paint must not shift when boot confirms it) -->
+  <section class="screen" id="screen-onboarding" aria-labelledby="ob-title">
+    <div class="ob-medallion" aria-hidden="true"><span lang="ar">قَضَاء</span></div>
+    <p class="kicker">Begin gently</p>
+    <h1 id="ob-title">How many prayers<br>await you?</h1>
+    <p class="lede">Two ways to start. Both are estimates — adjust anything, anytime. <span class="note-inline">The calculator gives an estimate only.</span></p>
+
+    <div class="seg" role="tablist" aria-label="Setup method">
+      <button type="button" role="tab" aria-selected="true" id="tab-est" class="seg-btn is-active">Estimate</button>
+      <button type="button" role="tab" aria-selected="false" id="tab-exact" class="seg-btn">Exact counts</button>
+    </div>
+
+    <form id="form-estimate" class="card ob-card" novalidate>
+      <div class="field">
+        <label for="ob-bulugh">Age of bulūgh (maturity)</label>
+        <input id="ob-bulugh" name="bulugh" inputmode="numeric" pattern="[0-9]*" min="8" max="25" value="15" required>
+        <p class="hint">The age from which prayers became obligatory for you.</p>
+      </div>
+      <div class="field">
+        <label for="ob-now">Your age today</label>
+        <input id="ob-now" name="now" inputmode="numeric" pattern="[0-9]*" min="9" max="120" value="30" required>
+      </div>
+      <div class="field">
+        <label for="ob-prayed">Years you mostly prayed <span class="opt">(optional)</span></label>
+        <input id="ob-prayed" name="prayed" inputmode="numeric" pattern="[0-9]*" min="0" max="120" value="0">
+        <p class="hint">Whole years since bulūgh when you rarely missed. These are subtracted.</p>
+      </div>
+      <div class="switchrow">
+        <div>
+          <p class="switch-label">Include Witr</p>
+          <p class="hint">Count one Witr per missed night alongside the five daily prayers.</p>
+        </div>
+        <button type="button" class="switch" id="ob-witr" role="switch" aria-checked="true" aria-label="Include Witr"><span></span></button>
+      </div>
+      <div class="est-result" aria-live="polite" id="est-result">
+        <p><strong id="est-total">—</strong><span>estimated prayers</span></p>
+        <p class="hint" id="est-breakdown"></p>
+      </div>
+      <button type="submit" class="btn btn-primary btn-block">Begin with this estimate</button>
+    </form>
+
+    <form id="form-exact" class="card ob-card" hidden novalidate>
+      <div id="exact-grid" class="exact-grid"></div>
+      <div class="switchrow">
+        <div>
+          <p class="switch-label">Include Witr</p>
+          <p class="hint">When off, Witr is hidden everywhere and excluded from totals.</p>
+        </div>
+        <button type="button" class="switch" id="ob-witr2" role="switch" aria-checked="true" aria-label="Include Witr"><span></span></button>
+      </div>
+      <button type="submit" class="btn btn-primary btn-block">Begin with these counts</button>
+    </form>
+    <p class="foot-note">Private by design — everything stays on this device. No accounts, no analytics.</p>
+  </section>
+
+  <!-- HOME -->
+  <section class="screen" id="screen-home" hidden aria-labelledby="home-title">
+    <div class="hero-arch" aria-hidden="true">
+      <div class="hero-inner">
+        <p class="hero-ar" lang="ar">وَأَقِيمُوا الصَّلَاةَ</p>
+        <div class="hero-div" aria-hidden="true"><span></span><i></i><span></span></div>
+        <h1 id="home-title"><span id="hero-remaining">0</span><span class="hero-sub">prayers remaining</span></h1>
+        <p class="hero-meta"><span id="hero-done">0 made up</span> · <span id="hero-pct">0%</span></p>
+        <div class="hero-bar" role="progressbar" id="hero-progress" aria-label="Overall progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="hero-fill"></span></div>
+      </div>
+    </div>
+
+    <div class="daystrip card">
+      <div>
+        <p class="kicker">Today</p>
+        <p class="day-count"><strong id="today-count">0</strong> made up today</p>
+      </div>
+      <button type="button" class="btn btn-primary" id="fullday-btn">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+        Full day
+      </button>
+    </div>
+
+    <h2 class="section-title">Log a prayer <span class="section-hint">Tap + to record one made-up prayer</span></h2>
+    <ul class="prayer-list" id="prayer-list" aria-label="Prayers"></ul>
+
+    <div class="bulkrow">
+      <button type="button" class="btn btn-ghost btn-block" id="bulk-btn">Add many at once…</button>
+    </div>
+    <p class="foot-note center">Every entry can be undone. Nothing is final.</p>
+  </section>
+
+  <!-- JOURNEY / STATS -->
+  <section class="screen" id="screen-journey" hidden aria-labelledby="j-title">
+    <p class="kicker">Journey</p>
+    <h1 id="j-title">Steady, by the day.</h1>
+
+    <div class="stat-grid">
+      <div class="card stat"><p class="stat-num" id="st-remaining">0</p><p class="stat-label">Remaining</p></div>
+      <div class="card stat"><p class="stat-num" id="st-done">0</p><p class="stat-label">Made up</p></div>
+      <div class="card stat"><p class="stat-num" id="st-streak">0</p><p class="stat-label">Day streak</p></div>
+      <div class="card stat"><p class="stat-num" id="st-best">0</p><p class="stat-label">Best streak</p></div>
+    </div>
+
+    <div class="card pace-card">
+      <div class="pace-row">
+        <div><p class="kicker">Last 7 days</p><p class="pace-num"><strong id="st-pace7">0</strong><span>/day</span></p></div>
+        <div><p class="kicker">Last 30 days</p><p class="pace-num"><strong id="st-pace30">0</strong><span>/day</span></p></div>
+      </div>
+      <div class="projection" aria-live="polite">
+        <p class="proj-label">At your recent pace, your debt clears</p>
+        <p class="proj-date" id="st-projection">—</p>
+        <p class="hint" id="st-projection-sub">Log a few days to reveal a projection.</p>
+      </div>
+    </div>
+
+    <h2 class="section-title">Per prayer</h2>
+    <ul class="rings" id="rings" aria-label="Progress per prayer"></ul>
+
+    <h2 class="section-title">Rhythm <span class="section-hint">Last 16 weeks</span></h2>
+    <div class="card">
+      <div class="heat-months" id="heat-months" aria-hidden="true"></div>
+      <div class="heatmap" id="heatmap" role="img" aria-label="Calendar heatmap of the last 16 weeks"></div>
+      <div class="heat-legend" aria-hidden="true"><span>Less</span><i data-l="0"></i><i data-l="1"></i><i data-l="2"></i><i data-l="3"></i><i data-l="4"></i><span>More</span></div>
+    </div>
+
+    <h2 class="section-title">Trends</h2>
+    <div class="card">
+      <p class="kicker">Last 8 weeks</p>
+      <div class="bars" id="bars-week" role="img" aria-label="Weekly trend"></div>
+    </div>
+    <div class="card">
+      <p class="kicker">Last 6 months</p>
+      <div class="bars" id="bars-month" role="img" aria-label="Monthly trend"></div>
+    </div>
+
+    <h2 class="section-title">Moments <span class="section-hint">Quiet milestones, kept for you</span></h2>
+    <div class="card"><ul class="moments" id="moments"></ul></div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section class="screen" id="screen-settings" hidden aria-labelledby="s-title">
+    <p class="kicker">Settings</p>
+    <h1 id="s-title">Care for your record.</h1>
+
+    <h2 class="section-title">Remaining counts</h2>
+    <div class="card"><div id="adjust-grid" class="adjust-grid"></div>
+      <p class="hint">Editing sets the remaining count directly. The change is recorded, so it stays undoable.</p>
+    </div>
+
+    <h2 class="section-title">Preferences</h2>
+    <div class="card settings-card">
+      <div class="switchrow">
+        <div><p class="switch-label">Include Witr</p><p class="hint">Hide or show Witr across the whole app.</p></div>
+        <button type="button" class="switch" id="set-witr" role="switch" aria-checked="true" aria-label="Include Witr"><span></span></button>
+      </div>
+      <div class="field">
+        <label for="set-theme">Theme</label>
+        <select id="set-theme">
+          <option value="system">Follow system</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
+      </div>
+    </div>
+
+    <h2 class="section-title">Backup</h2>
+    <div class="card settings-card">
+      <div class="btnrow">
+        <button type="button" class="btn" id="export-btn">Export backup</button>
+        <button type="button" class="btn" id="import-btn">Import backup</button>
+        <input type="file" id="import-file" accept="application/json,.json" hidden>
+      </div>
+      <p class="hint">A single JSON file with your full history. Keep it somewhere safe — it is the only copy outside this device.</p>
+    </div>
+
+    <h2 class="section-title">Recent activity</h2>
+    <div class="card"><ul class="history" id="history"></ul></div>
+
+    <h2 class="section-title">Start over</h2>
+    <div class="card settings-card">
+      <p class="hint">Clears every count and all history on this device. Export a backup first if you may want it back.</p>
+      <button type="button" class="btn btn-danger" id="reset-btn">Reset everything…</button>
+    </div>
+    <p class="foot-note center">Qadā’ keeps no accounts and sends nothing anywhere.<br>Version <span id="appver">1.0.0</span> · works fully offline.</p>
+  </section>
+</main>
+
+<!-- Bottom nav / thumb zone -->
+<nav class="tabbar" id="tabbar" aria-label="Primary" hidden>
+  <button type="button" class="tab is-active" data-tab="home" aria-current="page">
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21c-4 0-7-2.8-7-7 0-5 4-9 7-11 3 2 7 6 7 11 0 4.2-3 7-7 7Z"/></svg>
+    <span>Today</span>
+  </button>
+  <button type="button" class="tab" data-tab="journey">
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 19V9m5.5 10V5M15 19v-8m5 8V7"/></svg>
+    <span>Journey</span>
+  </button>
+  <button type="button" class="tab" data-tab="settings">
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2.3 1a7 7 0 0 0-2-1.2L14.2 3h-4l-.4 2.7a7 7 0 0 0-2 1.2l-2.3-1-2 3.4 2 1.5a7 7 0 0 0 0 2.4l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 2 1.2l.4 2.7h4l.4-2.7a7 7 0 0 0 2-1.2l2.3 1 2-3.4-2-1.5c.06-.4.1-.8.1-1.2Z"/></svg>
+    <span>Settings</span>
+  </button>
+</nav>
+
+<!-- Snackbar / undo -->
+<div class="snackbar" id="snackbar" hidden>
+  <p id="snack-msg" role="status" aria-live="polite"></p>
+  <button type="button" class="btn btn-small" id="snack-undo">Undo</button>
+  <button type="button" class="iconbtn" id="snack-close" aria-label="Dismiss">✕</button>
+</div>
+
+<!-- Bulk dialog -->
+<div class="scrim" id="bulk-scrim" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="bulk-title">
+    <h2 id="bulk-title">Add many at once</h2>
+    <p class="hint">Add missed prayers to your remaining debt, per prayer.</p>
+    <div id="bulk-grid" class="bulk-grid"></div>
+    <div class="btnrow">
+      <button type="button" class="btn btn-ghost" id="bulk-cancel">Cancel</button>
+      <button type="button" class="btn btn-primary" id="bulk-save">Add to debt</button>
+    </div>
+  </div>
+</div>
+
+<!-- Reset dialog -->
+<div class="scrim" id="reset-scrim" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="reset-title">
+    <h2 id="reset-title">Reset everything?</h2>
+    <p>This clears all counts and history on this device. This cannot be undone.</p>
+    <label class="confirm-row"><input type="checkbox" id="reset-confirm"> <span>I understand — clear it all.</span></label>
+    <div class="btnrow">
+      <button type="button" class="btn btn-ghost" id="reset-cancel">Keep my record</button>
+      <button type="button" class="btn btn-danger" id="reset-do" disabled>Reset everything</button>
+    </div>
+  </div>
+</div>
+
+<noscript><p style="padding:2rem;text-align:center">Qadā’ needs JavaScript to keep your record on this device.</p></noscript>
+<script src="app.js" defer></script>
+</body>
+</html>
