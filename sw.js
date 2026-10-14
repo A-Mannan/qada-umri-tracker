@@ -1,5 +1,5 @@
 /* Qadā’ service worker — precache app shell + runtime cache, offline-first. */
-const CACHE = 'qaza-v1-1-0';
+const CACHE = 'qaza-v1-1-1';
 const SHELL = [
   './',
   'index.html',
