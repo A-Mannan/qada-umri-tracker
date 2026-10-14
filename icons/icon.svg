@@ -1,16 +1,27 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Qadā’">
   <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#104A3F"/>
       <stop offset="1" stop-color="#08211C"/>
     </linearGradient>
+    <radialGradient id="glow" cx="256" cy="256" r="150" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F2EBD6" stop-opacity=".30"/>
+      <stop offset=".55" stop-color="#F2EBD6" stop-opacity=".08"/>
+      <stop offset="1" stop-color="#F2EBD6" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="vig" cx="256" cy="266" r="300" gradientUnits="userSpaceOnUse">
+      <stop offset=".62" stop-color="#000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity=".22"/>
+    </radialGradient>
   </defs>
-  <rect width="512" height="512" rx="115" fill="url(#g)"/>
+  <rect width="512" height="512" rx="115" fill="url(#bg)"/>
+  <circle cx="256" cy="256" r="150" fill="url(#glow)"/>
   <path d="M 141 358 L 141 225 A 115 115 0 0 1 371 225 L 371 358"
     fill="none" stroke="#F2EBD6" stroke-width="46"/>
   <g fill="#E7C87E">
-    <polygon points="256,221 291,256 256,291 221,256"/>
-    <polygon points="280.7,231.3 280.7,280.7 231.3,280.7 231.3,231.3"/>
+    <polygon points="256,215 293,252 256,289 219,252"/>
+    <polygon points="282.3,226.2 282.3,277.8 230.7,277.8 230.7,226.2"/>
   </g>
   <rect x="118" y="358" width="276" height="12" rx="6" fill="#F2EBD6"/>
+  <rect width="512" height="512" rx="115" fill="url(#vig)"/>
 </svg>
